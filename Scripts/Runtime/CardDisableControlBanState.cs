@@ -4,9 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Runs;
-using MegaCrit.Sts2.Core.Entities.Players;
 
 namespace CardDisableControl.Scripts.Runtime;
 
@@ -59,6 +59,7 @@ internal static class CardDisableControlBanState
         string? key = GetCardKey(card);
         if (string.IsNullOrWhiteSpace(key))
         {
+            CardDisableControlLogger.Warn($"[{reason}] 切换禁用失败：无法解析卡牌键。");
             return false;
         }
 
@@ -73,7 +74,7 @@ internal static class CardDisableControlBanState
 
         if (changed)
         {
-            CardDisableControlLogger.Info($"已通过 {reason} {(newState ? "禁用" : "解禁")} 卡牌: {key}");
+            CardDisableControlLogger.Info($"通过 {reason} {(newState ? "禁用" : "解禁")}卡牌: {key}");
             BanStateChanged?.Invoke(key, newState);
         }
 
@@ -85,6 +86,7 @@ internal static class CardDisableControlBanState
         string? key = GetCardKey(card);
         if (string.IsNullOrWhiteSpace(key))
         {
+            CardDisableControlLogger.Warn($"[{reason}] 设置禁用失败：无法解析卡牌键。");
             return false;
         }
 
@@ -97,7 +99,7 @@ internal static class CardDisableControlBanState
 
         if (changed)
         {
-            CardDisableControlLogger.Info($"已通过 {reason} {(banned ? "禁用" : "解禁")} 卡牌: {key}");
+            CardDisableControlLogger.Info($"通过 {reason} {(banned ? "禁用" : "解禁")}卡牌: {key}");
             BanStateChanged?.Invoke(key, banned);
         }
 
@@ -115,13 +117,13 @@ internal static class CardDisableControlBanState
         List<CardModel> filtered = source.Where((CardModel card) => !IsBanned(card)).ToList();
         if (filtered.Count == 0)
         {
-            CardDisableControlLogger.Info($"{context} 过滤后候选卡池为空，已回退到原卡池。");
+            CardDisableControlLogger.Info($"{context} 过滤后候选池为空，回退到原候选池。");
             return source;
         }
 
         if (filtered.Count != source.Count)
         {
-            CardDisableControlLogger.Info($"{context} 已过滤禁用卡牌: {source.Count - filtered.Count} 张。");
+            CardDisableControlLogger.Info($"{context} 已过滤禁用卡牌 {source.Count - filtered.Count} 张。");
         }
 
         return filtered;
@@ -138,7 +140,7 @@ internal static class CardDisableControlBanState
         List<CardModel> filtered = source.Where((CardModel card) => !IsBanned(card)).ToList();
         if (filtered.Count == 0)
         {
-            CardDisableControlLogger.Info($"{context} 过滤后候选卡池为空，已回退到原卡池。");
+            CardDisableControlLogger.Info($"{context} 过滤后候选池为空，回退到原候选池。");
             return options;
         }
 
@@ -163,7 +165,7 @@ internal static class CardDisableControlBanState
             newOptions.WithRngOverride(options.RngOverride);
         }
 
-        CardDisableControlLogger.Info($"{context} 已过滤禁用卡牌: {source.Count - filtered.Count} 张。");
+        CardDisableControlLogger.Info($"{context} 已过滤禁用卡牌 {source.Count - filtered.Count} 张。");
         return newOptions;
     }
 
@@ -174,7 +176,6 @@ internal static class CardDisableControlBanState
             return null;
         }
 
-        // 不同来源的卡牌实例可能没有可用的 CanonicalInstance，先尝试 canonical，再回退实例 Id。
         try
         {
             CardModel? canonical = card.CanonicalInstance;
@@ -252,9 +253,15 @@ internal static class CardDisableControlBanState
 
             if (!File.Exists(settingsPath))
             {
-                CardDisableControlLogger.Info($"未找到禁用配置文件，使用默认配置: {settingsPath}");
-                BannedCardKeys.Clear();
-                return;
+                CardDisableControlBanSettings empty = new()
+                {
+                    SchemaVersion = SchemaVersion,
+                    BannedCards = new List<string>()
+                };
+
+                string emptyJson = JsonSerializer.Serialize(empty, JsonOptions);
+                File.WriteAllText(settingsPath, emptyJson);
+                CardDisableControlLogger.Info($"未找到禁用配置，已创建空配置文件: {settingsPath}");
             }
 
             string json = File.ReadAllText(settingsPath);
@@ -271,10 +278,10 @@ internal static class CardDisableControlBanState
 
             if (settings != null && settings.SchemaVersion != SchemaVersion)
             {
-                CardDisableControlLogger.Warn($"检测到旧配置版本 {settings.SchemaVersion}，已按兼容方式读取。");
+                CardDisableControlLogger.Warn($"检测到旧配置版本 {settings.SchemaVersion}，按兼容方式读取。");
             }
 
-            CardDisableControlLogger.Info($"禁用配置加载完成，当前禁用 {BannedCardKeys.Count} 张卡。");
+            CardDisableControlLogger.Info($"禁用配置加载完成：{settingsPath}，当前禁用 {BannedCardKeys.Count} 张卡。");
         }
         catch (Exception exception)
         {

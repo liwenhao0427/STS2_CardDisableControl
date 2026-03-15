@@ -57,56 +57,48 @@ internal static class CardDisableControlHotkeyPatch
     [HarmonyPostfix]
     private static void Postfix(InputEvent inputEvent)
     {
-        if (inputEvent is not InputEventKey keyEvent || keyEvent.Pressed || keyEvent.Echo)
+        bool isKeyboardTrigger = inputEvent is InputEventKey keyEvent &&
+                                 !keyEvent.Pressed &&
+                                 !keyEvent.Echo &&
+                                 (keyEvent.Keycode == Key.B || keyEvent.PhysicalKeycode == Key.B);
+
+        bool isMiddleMouseTrigger = inputEvent is InputEventMouseButton mouseEvent &&
+                                    !mouseEvent.Pressed &&
+                                    mouseEvent.ButtonIndex == MouseButton.Middle;
+
+        if (!isKeyboardTrigger && !isMiddleMouseTrigger)
         {
             return;
         }
 
-        if (keyEvent.Keycode != Key.B && keyEvent.PhysicalKeycode != Key.B)
-        {
-            return;
-        }
-
+        string triggerName = isKeyboardTrigger ? "快捷键 B" : "鼠标中键";
         if (ActiveScreenContext.Instance.GetCurrentScreen() is not NCardLibrary cardLibraryScreen)
         {
-            CardDisableControlLogger.Info("检测到 B 键，但当前不在卡牌总览界面，忽略。");
+            CardDisableControlLogger.Info($"检测到{triggerName}，但当前不在卡牌总览界面，忽略。");
             return;
         }
 
-        NGridCardHolder? holder = CardDisableControlUiState.GetFocusedCardLibraryHolder();
-        if (holder == null || !GodotObject.IsInstanceValid(holder) || holder.CardModel == null || !CardDisableControlUiState.IsCardLibraryHolder(holder))
+        NGridCardHolder? holder = CardDisableControlUiState.TryFindHoveredCardLibraryHolder(cardLibraryScreen);
+        if (holder == null || !GodotObject.IsInstanceValid(holder) || holder.CardModel == null)
         {
-            Vector2 mousePosition = cardLibraryScreen.GetViewport().GetMousePosition();
-            holder = CardDisableControlUiState.TryFindHoveredCardLibraryHolder(cardLibraryScreen, mousePosition);
-            if (holder != null)
-            {
-                CardDisableControlLogger.Info($"B 键回退命中鼠标悬停卡牌: {holder.Name}");
-            }
+            holder = CardDisableControlUiState.GetFocusedCardLibraryHolder();
         }
 
         if (holder == null || !GodotObject.IsInstanceValid(holder) || holder.CardModel == null)
         {
-            CardDisableControlLogger.Info("检测到 B 键，但未找到有效的总览卡牌 holder。");
-            return;
-        }
-
-        bool hasFocus = holder.HasFocus() || holder.Hitbox.HasFocus();
-        bool isMouseOver = holder.GetGlobalRect().HasPoint(holder.GetViewport().GetMousePosition());
-        if (!hasFocus && !isMouseOver)
-        {
-            CardDisableControlLogger.Info("检测到 B 键，但目标卡牌既未聚焦也未悬停，忽略。");
+            CardDisableControlLogger.Info($"检测到{triggerName}，但未找到悬停或聚焦的卡牌。");
             return;
         }
 
         string? cardKey = CardDisableControlBanState.GetCardKey(holder.CardModel);
         if (string.IsNullOrWhiteSpace(cardKey))
         {
-            CardDisableControlLogger.Warn("检测到 B 键，但无法解析卡牌 ModelId。");
+            CardDisableControlLogger.Warn($"检测到{triggerName}，但无法解析卡牌 ModelId。");
             return;
         }
 
-        bool isBanned = CardDisableControlBanState.Toggle(holder.CardModel, "总览快捷键 B");
-        CardDisableControlLogger.Info($"快捷键 B 已{(isBanned ? "禁用" : "解禁")}卡牌: {cardKey}");
+        bool isBanned = CardDisableControlBanState.Toggle(holder.CardModel, triggerName);
+        CardDisableControlLogger.Info($"{triggerName}已{(isBanned ? "禁用" : "解禁")}卡牌: {cardKey}");
     }
 }
 
