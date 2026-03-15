@@ -2,6 +2,8 @@ using System;
 using Godot;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.UI;
+using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Relics;
 using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
 
 namespace CardDisableControl.Scripts.Runtime;
@@ -9,11 +11,18 @@ namespace CardDisableControl.Scripts.Runtime;
 internal partial class CardDisableControlBanOverlay : Control
 {
     public const string OverlayNodeName = "CardDisableControlBanOverlay";
+    private const float IconSize = 30f;
+    private const float IconMargin = 6f;
 
     private NGridCardHolder? _holder;
-    private bool _shouldDraw;
+    private TextureButton? _actionButton;
+    private bool _isActionVisible;
+    private bool _isBanned;
     private string? _lastCardKey;
     private Vector2 _lastSize = Vector2.Zero;
+
+    private static Texture2D? _disableIcon;
+    private static Texture2D? _restoreIcon;
 
     public static void EnsureAttached(NGridCardHolder holder)
     {
@@ -29,18 +38,21 @@ internal partial class CardDisableControlBanOverlay : Control
         };
 
         holder.AddChild(overlay);
-        CardDisableControlLogger.Info($"已为总览卡牌挂载红X覆盖层: {holder.Name}");
+        CardDisableControlLogger.Info($"已为总览卡牌挂载操作图标层: {holder.Name}");
     }
 
     public override void _Ready()
     {
-        MouseFilter = MouseFilterEnum.Ignore;
+        MouseFilter = MouseFilterEnum.Pass;
         SetAnchorsPreset(LayoutPreset.FullRect);
         OffsetLeft = 0f;
         OffsetTop = 0f;
         OffsetRight = 0f;
         OffsetBottom = 0f;
         ZIndex = 150;
+
+        EnsureIconsLoaded();
+        CreateActionButton();
 
         CardDisableControlBanState.BanStateChanged += OnBanStateChanged;
         SetProcess(true);
@@ -49,59 +61,89 @@ internal partial class CardDisableControlBanOverlay : Control
     public override void _ExitTree()
     {
         CardDisableControlBanState.BanStateChanged -= OnBanStateChanged;
+
+        if (_actionButton != null)
+        {
+            _actionButton.Pressed -= OnActionPressed;
+        }
+
         base._ExitTree();
     }
 
     public override void _Process(double delta)
     {
-        RefreshDrawState();
+        RefreshButtonState();
     }
 
-    public override void _Draw()
+    private void EnsureIconsLoaded()
     {
-        if (!_shouldDraw)
+        _disableIcon ??= ModelDb.Relic<PreciseScissors>().Icon;
+        _restoreIcon ??= ModelDb.Relic<TinyMailbox>().Icon;
+    }
+
+    private void CreateActionButton()
+    {
+        if (_actionButton != null)
         {
             return;
         }
 
-        Vector2 size = Size;
-        if (size.X < 8f || size.Y < 8f)
+        _actionButton = new TextureButton
+        {
+            Name = "CardDisableControlActionIcon",
+            MouseFilter = MouseFilterEnum.Stop,
+            FocusMode = FocusModeEnum.None,
+            IgnoreTextureSize = true,
+            StretchMode = TextureButton.StretchModeEnum.KeepAspectCentered,
+            Size = new Vector2(IconSize, IconSize),
+            CustomMinimumSize = new Vector2(IconSize, IconSize),
+            Visible = false
+        };
+
+        _actionButton.Pressed += OnActionPressed;
+        AddChild(_actionButton);
+    }
+
+    private void RefreshButtonState()
+    {
+        if (_actionButton == null)
         {
             return;
         }
 
-        float margin = Math.Max(16f, Math.Min(size.X, size.Y) * 0.08f);
-        float width = Math.Max(6f, Math.Min(size.X, size.Y) * 0.03f);
-        Color shadow = new(0.15f, 0f, 0f, 0.6f);
-        Color main = new(0.95f, 0.1f, 0.1f, 0.9f);
-
-        Vector2 topLeft = new(margin, margin);
-        Vector2 topRight = new(size.X - margin, margin);
-        Vector2 bottomLeft = new(margin, size.Y - margin);
-        Vector2 bottomRight = new(size.X - margin, size.Y - margin);
-
-        DrawLine(topLeft + Vector2.Down * 2f, bottomRight + Vector2.Down * 2f, shadow, width + 2f, true);
-        DrawLine(bottomLeft + Vector2.Down * 2f, topRight + Vector2.Down * 2f, shadow, width + 2f, true);
-        DrawLine(topLeft, bottomRight, main, width, true);
-        DrawLine(bottomLeft, topRight, main, width, true);
-    }
-
-    private void RefreshDrawState()
-    {
         string? currentCardKey = CardDisableControlBanState.GetCardKey(_holder?.CardModel);
-        bool shouldDraw = ShouldDrawNow();
+        bool shouldShow = ShouldShowAction();
+        bool isBanned = shouldShow && CardDisableControlBanState.IsBanned(_holder?.CardModel);
         Vector2 currentSize = Size;
 
-        if (_shouldDraw != shouldDraw || !string.Equals(_lastCardKey, currentCardKey, StringComparison.OrdinalIgnoreCase) || currentSize != _lastSize)
+        if (_isActionVisible == shouldShow &&
+            _isBanned == isBanned &&
+            string.Equals(_lastCardKey, currentCardKey, StringComparison.OrdinalIgnoreCase) &&
+            currentSize == _lastSize)
         {
-            _shouldDraw = shouldDraw;
-            _lastCardKey = currentCardKey;
-            _lastSize = currentSize;
-            QueueRedraw();
+            return;
         }
+
+        _isActionVisible = shouldShow;
+        _isBanned = isBanned;
+        _lastCardKey = currentCardKey;
+        _lastSize = currentSize;
+
+        _actionButton.Visible = shouldShow;
+        if (!shouldShow)
+        {
+            return;
+        }
+
+        Texture2D? icon = isBanned ? _restoreIcon : _disableIcon;
+        _actionButton.TextureNormal = icon;
+        _actionButton.TextureHover = icon;
+        _actionButton.TexturePressed = icon;
+        _actionButton.TextureDisabled = icon;
+        _actionButton.Position = new Vector2(Math.Max(0f, Size.X - IconSize - IconMargin), IconMargin);
     }
 
-    private bool ShouldDrawNow()
+    private bool ShouldShowAction()
     {
         if (_holder == null || !GodotObject.IsInstanceValid(_holder))
         {
@@ -113,16 +155,32 @@ internal partial class CardDisableControlBanOverlay : Control
             return false;
         }
 
+        if (_holder.CardModel == null)
+        {
+            return false;
+        }
+
         if (_holder.CardNode == null || _holder.CardNode.Visibility != ModelVisibility.Visible)
         {
             return false;
         }
 
-        return CardDisableControlBanState.IsBanned(_holder.CardModel);
+        return Size.X >= 30f && Size.Y >= 30f;
+    }
+
+    private void OnActionPressed()
+    {
+        if (_holder == null || !GodotObject.IsInstanceValid(_holder) || _holder.CardModel == null)
+        {
+            return;
+        }
+
+        bool nextBanned = !CardDisableControlBanState.IsBanned(_holder.CardModel);
+        CardDisableControlBanState.SetBanned(_holder.CardModel, nextBanned, "总览图标");
     }
 
     private void OnBanStateChanged(string _, bool __)
     {
-        QueueRedraw();
+        RefreshButtonState();
     }
 }

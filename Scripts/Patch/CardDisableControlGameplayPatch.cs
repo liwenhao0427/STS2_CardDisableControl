@@ -118,9 +118,7 @@ internal static class CardDisableControlInspectReadyPatch
     [HarmonyPostfix]
     private static void Postfix(NInspectCardScreen __instance)
     {
-        CardDisableControlInspectToggleController.EnsureAttached(__instance);
-        CardDisableControlInspectToggleController.RefreshFor(__instance);
-        CardDisableControlLogger.Info("详情页已挂载禁用卡牌勾选控制器。");
+        // 详情页自定义禁用勾选暂时停用，统一通过总览右上角图标交互。
     }
 }
 
@@ -130,7 +128,7 @@ internal static class CardDisableControlInspectSetCardPatch
     [HarmonyPostfix]
     private static void Postfix(NInspectCardScreen __instance)
     {
-        CardDisableControlInspectToggleController.RefreshFor(__instance);
+        // 详情页自定义禁用勾选暂时停用，统一通过总览右上角图标交互。
     }
 }
 
