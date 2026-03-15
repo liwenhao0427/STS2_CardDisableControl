@@ -4,7 +4,7 @@ using System.Reflection;
 using HarmonyLib;
 using Godot;
 using MegaCrit.Sts2.Core.Models;
-using MegaCrit.Sts2.Core.Nodes.CommonUi;
+using MegaCrit.Sts2.Core.Nodes.Cards;
 using MegaCrit.Sts2.Core.Nodes.Screens;
 
 namespace CardDisableControl.Scripts.Runtime;
@@ -12,25 +12,19 @@ namespace CardDisableControl.Scripts.Runtime;
 internal partial class CardDisableControlInspectToggleController : Node
 {
     private const string ControllerNodeName = "CardDisableControlInspectToggleController";
-    private const string BanToggleName = "CardDisableControlBanCheckbox";
-    private const string BanLabelName = "CardDisableControlBanLabel";
-    private const float SideOffset = 180f;
+    private const string BanToggleName = "CardDisableControlInspectBanCheck";
+    private const string BanLabelName = "CardDisableControlInspectBanLabel";
+    private const float BottomRatio = 0.84f;
+    private const float Gap = 4f;
 
-    private static readonly FieldInfo? UpgradeTickboxField = AccessTools.Field(typeof(NInspectCardScreen), "_upgradeTickbox");
     private static readonly FieldInfo? CardsField = AccessTools.Field(typeof(NInspectCardScreen), "_cards");
     private static readonly FieldInfo? IndexField = AccessTools.Field(typeof(NInspectCardScreen), "_index");
 
     private NInspectCardScreen? _screen;
-    private NTickbox? _upgradeTickbox;
-    private Control? _upgradeLabel;
+    private NCard? _inspectCard;
     private CheckBox? _banToggle;
-    private Control? _banLabel;
-
+    private Label? _banLabel;
     private bool _isSyncingUi;
-    private bool _layoutInitialized;
-    private bool _styleAppliedLogged;
-    private Vector2 _upgradeTickboxBasePos;
-    private Vector2 _upgradeLabelBasePos;
 
     public static void EnsureAttached(NInspectCardScreen screen)
     {
@@ -79,134 +73,101 @@ internal partial class CardDisableControlInspectToggleController : Node
             return;
         }
 
-        ResetInvalidReferences();
-
-        _upgradeTickbox ??= UpgradeTickboxField?.GetValue(_screen) as NTickbox;
-        _upgradeLabel ??= _screen.GetNodeOrNull<Control>("%ShowUpgradeLabel");
-        if (_upgradeTickbox == null || _upgradeLabel == null)
+        if (_inspectCard == null || !GodotObject.IsInstanceValid(_inspectCard))
         {
-            CardDisableControlLogger.Warn("详情页禁用勾选初始化失败：未找到“查看升级”控件。");
-            return;
+            _inspectCard = _screen.GetNodeOrNull<NCard>("Card");
         }
 
-        if (!_layoutInitialized)
+        if (_inspectCard == null)
         {
-            _layoutInitialized = true;
-            _upgradeTickboxBasePos = _upgradeTickbox.Position;
-            _upgradeLabelBasePos = _upgradeLabel.Position;
+            CardDisableControlLogger.Warn("详情页禁用勾选初始化失败：未找到 Card 节点。");
+            return;
         }
 
         if (_banToggle == null)
         {
-            Node? tickboxParent = _upgradeTickbox.GetParent();
-            if (tickboxParent == null)
-            {
-                CardDisableControlLogger.Warn("详情页禁用勾选初始化失败：升级勾选父节点为空。");
-                return;
-            }
-
             _banToggle = new CheckBox
             {
                 Name = BanToggleName,
                 FocusMode = Control.FocusModeEnum.None,
                 MouseFilter = Control.MouseFilterEnum.Stop,
-                Size = _upgradeTickbox.Size,
-                CustomMinimumSize = _upgradeTickbox.CustomMinimumSize,
-                Scale = _upgradeTickbox.Scale,
-                Theme = _upgradeTickbox.Theme,
-                ThemeTypeVariation = _upgradeTickbox.ThemeTypeVariation,
-                Modulate = _upgradeTickbox.Modulate
+                Size = new Vector2(16f, 16f),
+                CustomMinimumSize = new Vector2(16f, 16f)
             };
-
             _banToggle.Toggled += OnBanToggleChanged;
-            tickboxParent.AddChild(_banToggle);
+            _inspectCard.AddChild(_banToggle);
         }
 
         if (_banLabel == null)
         {
-            Node labelCopy = _upgradeLabel.Duplicate((int)(Node.DuplicateFlags.Scripts | Node.DuplicateFlags.UseInstantiation));
-            if (labelCopy is not Control banLabel)
+            _banLabel = new Label
             {
-                CardDisableControlLogger.Warn("详情页禁用勾选初始化失败：复制升级标签节点失败。");
-                return;
-            }
-
-            Node? labelParent = _upgradeLabel.GetParent();
-            if (labelParent == null)
-            {
-                CardDisableControlLogger.Warn("详情页禁用勾选初始化失败：升级标签父节点为空。");
-                return;
-            }
-
-            _banLabel = banLabel;
-            _banLabel.Name = BanLabelName;
-            SetLabelText(_banLabel, "禁用卡牌");
-            labelParent.AddChild(_banLabel);
+                Name = BanLabelName,
+                FocusMode = Control.FocusModeEnum.None,
+                MouseFilter = Control.MouseFilterEnum.Ignore,
+                Text = "禁用",
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
+                AutowrapMode = TextServer.AutowrapMode.Off,
+                Size = new Vector2(80f, 16f),
+                CustomMinimumSize = new Vector2(80f, 16f),
+                Modulate = new Color(0.95f, 0.85f, 0.2f, 1f)
+            };
+            _inspectCard.AddChild(_banLabel);
         }
 
         ApplyLayout();
-
-        if (!_styleAppliedLogged)
-        {
-            _styleAppliedLogged = true;
-            CardDisableControlLogger.Info("详情页禁用勾选已应用：左侧查看升级，右侧禁用卡牌。");
-        }
-    }
-
-    private void SetLabelText(Control label, string text)
-    {
-        if (label.HasMethod("SetTextAutoSize"))
-        {
-            label.Call("SetTextAutoSize", text);
-        }
-
-        if (label.HasMethod("SetText"))
-        {
-            label.Call("SetText", text);
-        }
-
-        if (label.HasMethod("SetPlaintext"))
-        {
-            label.Call("SetPlaintext", text);
-        }
-
-        label.Set("text", text);
-    }
-
-    private void ResetInvalidReferences()
-    {
-        if (_upgradeTickbox != null && !GodotObject.IsInstanceValid(_upgradeTickbox))
-        {
-            _upgradeTickbox = null;
-        }
-
-        if (_upgradeLabel != null && !GodotObject.IsInstanceValid(_upgradeLabel))
-        {
-            _upgradeLabel = null;
-        }
-
-        if (_banToggle != null && !GodotObject.IsInstanceValid(_banToggle))
-        {
-            _banToggle = null;
-        }
-
-        if (_banLabel != null && !GodotObject.IsInstanceValid(_banLabel))
-        {
-            _banLabel = null;
-        }
     }
 
     private void ApplyLayout()
     {
-        if (_upgradeTickbox == null || _upgradeLabel == null || _banToggle == null || _banLabel == null)
+        if (_inspectCard == null || _banToggle == null || _banLabel == null)
         {
             return;
         }
 
-        _upgradeTickbox.Position = _upgradeTickboxBasePos + Vector2.Left * SideOffset;
-        _upgradeLabel.Position = _upgradeLabelBasePos + Vector2.Left * SideOffset;
-        _banToggle.Position = _upgradeTickboxBasePos + Vector2.Right * SideOffset;
-        _banLabel.Position = _upgradeLabelBasePos + Vector2.Right * SideOffset;
+        int fontSize = ResolveDescriptionFontSize();
+        float checkSize = fontSize;
+        float textWidth = fontSize * 2.2f;
+
+        _banToggle.CustomMinimumSize = new Vector2(checkSize, checkSize);
+        _banToggle.Size = _banToggle.CustomMinimumSize;
+
+        _banLabel.AddThemeFontSizeOverride("font_size", fontSize);
+        _banLabel.Text = "禁用";
+        _banLabel.Size = new Vector2(textWidth, checkSize);
+
+        Vector2 size = _inspectCard.Size;
+        float groupWidth = checkSize + Gap + textWidth;
+        float x = (size.X - groupWidth) * 0.5f;
+        float y = size.Y * BottomRatio;
+
+        _banToggle.Position = new Vector2(x, y);
+        _banLabel.Position = new Vector2(x + checkSize + Gap, y);
+    }
+
+    private int ResolveDescriptionFontSize()
+    {
+        if (_inspectCard != null)
+        {
+            Control? descriptionLabel = _inspectCard.GetNodeOrNull<Control>("%DescriptionLabel");
+            if (descriptionLabel != null)
+            {
+                int size = descriptionLabel.GetThemeFontSize("normal_font_size");
+                if (size > 0)
+                {
+                    return size;
+                }
+
+                size = descriptionLabel.GetThemeFontSize("font_size");
+                if (size > 0)
+                {
+                    return size;
+                }
+            }
+        }
+
+        return 16;
     }
 
     private void RefreshUi()
@@ -223,7 +184,7 @@ internal partial class CardDisableControlInspectToggleController : Node
         }
 
         CardModel? currentCard = GetCurrentCard();
-        bool visible = currentCard != null;
+        bool visible = currentCard != null && _screen.Visible;
 
         _banToggle.Visible = visible;
         _banLabel.Visible = visible;
@@ -232,6 +193,8 @@ internal partial class CardDisableControlInspectToggleController : Node
         {
             return;
         }
+
+        ApplyLayout();
 
         bool isBanned = CardDisableControlBanState.IsBanned(currentCard);
         if (_banToggle.ButtonPressed != isBanned)
