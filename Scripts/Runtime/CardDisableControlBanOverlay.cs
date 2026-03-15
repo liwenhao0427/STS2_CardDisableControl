@@ -16,9 +16,10 @@ internal partial class CardDisableControlBanOverlay : Control
     private const float Gap = 4f;
     // 预览勾选位置微调：负值=向左/向上
     private const float PositionOffsetX = -18f;
-    private const float PositionOffsetY = -14f;
+    private const float PositionOffsetY = -28f;
 
     private NGridCardHolder? _holder;
+    private ColorRect? _banBackground;
     private CheckBox? _banCheckBox;
     private Label? _banLabel;
     private bool _isSyncingUi;
@@ -69,6 +70,14 @@ internal partial class CardDisableControlBanOverlay : Control
         {
             _banCheckBox.Toggled -= OnCheckBoxToggled;
         }
+        if (_banLabel != null)
+        {
+            _banLabel.GuiInput -= OnLabelGuiInput;
+        }
+        if (_banBackground != null)
+        {
+            _banBackground.GuiInput -= OnBackgroundGuiInput;
+        }
 
         base._ExitTree();
     }
@@ -80,6 +89,19 @@ internal partial class CardDisableControlBanOverlay : Control
 
     private void EnsureControls()
     {
+        if (_banBackground == null)
+        {
+            _banBackground = new ColorRect
+            {
+                Name = "CardDisableControlGridBanBackground",
+                FocusMode = FocusModeEnum.None,
+                MouseFilter = MouseFilterEnum.Stop,
+                Color = new Color(0f, 0f, 0f, 0.35f)
+            };
+            _banBackground.GuiInput += OnBackgroundGuiInput;
+            AddChild(_banBackground);
+        }
+
         if (_banCheckBox == null)
         {
             _banCheckBox = new CheckBox
@@ -99,7 +121,7 @@ internal partial class CardDisableControlBanOverlay : Control
             _banLabel = new Label
             {
                 Name = "CardDisableControlGridBanLabel",
-                MouseFilter = MouseFilterEnum.Ignore,
+                MouseFilter = MouseFilterEnum.Stop,
                 FocusMode = FocusModeEnum.None,
                 Text = "禁用",
                 HorizontalAlignment = HorizontalAlignment.Left,
@@ -109,13 +131,14 @@ internal partial class CardDisableControlBanOverlay : Control
                 CustomMinimumSize = new Vector2(38f, 14f),
                 Modulate = new Color(0.95f, 0.85f, 0.2f, 1f)
             };
+            _banLabel.GuiInput += OnLabelGuiInput;
             AddChild(_banLabel);
         }
     }
 
     private void RefreshUi()
     {
-        if (_banCheckBox == null || _banLabel == null)
+        if (_banCheckBox == null || _banLabel == null || _banBackground == null)
         {
             return;
         }
@@ -141,6 +164,7 @@ internal partial class CardDisableControlBanOverlay : Control
 
         _banCheckBox.Visible = visible;
         _banLabel.Visible = visible;
+        _banBackground.Visible = visible;
 
         if (!_hasLoggedProbe || !visible)
         {
@@ -161,13 +185,14 @@ internal partial class CardDisableControlBanOverlay : Control
         }
 
         int fontSize = ResolveDescriptionFontSize();
-        float textWidth = fontSize * 2.2f;
+        string labelText = isBanned ? "[x] 禁用" : "[ ] 禁用";
+        float textWidth = fontSize * 5.2f;
         float checkSize = fontSize;
 
         _banCheckBox.CustomMinimumSize = new Vector2(checkSize, checkSize);
         _banCheckBox.Size = _banCheckBox.CustomMinimumSize;
         _banLabel.AddThemeFontSizeOverride("font_size", fontSize);
-        _banLabel.Text = "禁用";
+        _banLabel.Text = labelText;
         _banLabel.Size = new Vector2(textWidth, checkSize);
 
         float groupWidth = checkSize + Gap + textWidth;
@@ -177,6 +202,8 @@ internal partial class CardDisableControlBanOverlay : Control
 
         Position = localGroupPos;
         Size = new Vector2(groupWidth, checkSize);
+        _banBackground.Position = new Vector2(-2f, -1f);
+        _banBackground.Size = new Vector2(groupWidth + 4f, checkSize + 2f);
         _banCheckBox.Position = Vector2.Zero;
         _banLabel.Position = new Vector2(checkSize + Gap, 0f);
 
@@ -310,6 +337,33 @@ internal partial class CardDisableControlBanOverlay : Control
     private void OnBanStateChanged(string _, bool __)
     {
         RefreshUi();
+    }
+
+    private void OnLabelGuiInput(InputEvent inputEvent)
+    {
+        ToggleByAuxClick(inputEvent);
+    }
+
+    private void OnBackgroundGuiInput(InputEvent inputEvent)
+    {
+        ToggleByAuxClick(inputEvent);
+    }
+
+    private void ToggleByAuxClick(InputEvent inputEvent)
+    {
+        if (_banCheckBox == null || _isSyncingUi)
+        {
+            return;
+        }
+
+        if (inputEvent is not InputEventMouseButton mouseEvent ||
+            mouseEvent.ButtonIndex != MouseButton.Left ||
+            mouseEvent.Pressed)
+        {
+            return;
+        }
+
+        _banCheckBox.ButtonPressed = !_banCheckBox.ButtonPressed;
     }
 }
 
