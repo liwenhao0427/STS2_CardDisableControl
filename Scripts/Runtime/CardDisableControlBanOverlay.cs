@@ -12,8 +12,7 @@ internal partial class CardDisableControlBanOverlay : Control
 {
     public const string OverlayNodeName = "CardDisableControlBanOverlay";
 
-    private const float TopPadding = 4f;
-    private const float RightPadding = 6f;
+    private const float BottomPadding = 8f;
 
     private NGridCardHolder? _holder;
     private Label? _banLabel;
@@ -26,16 +25,19 @@ internal partial class CardDisableControlBanOverlay : Control
 
     public static void EnsureAttached(NGridCardHolder holder)
     {
-        Node parent = holder;
+        Node parent;
         if (holder.CardNode != null)
         {
             parent = holder.CardNode;
         }
-        else if (holder.Hitbox is Node hitboxNode)
+        else if (holder.Hitbox != null)
         {
-            parent = hitboxNode;
+            parent = holder.Hitbox;
         }
-
+        else
+        {
+            parent = holder;
+        }
         if (parent.GetNodeOrNull<CardDisableControlBanOverlay>(OverlayNodeName) != null)
         {
             return;
@@ -48,7 +50,7 @@ internal partial class CardDisableControlBanOverlay : Control
         };
 
         parent.AddChild(overlay);
-        CardDisableControlLogger.Info($"已为总览卡牌挂载禁用勾选层: {holder.Name}, parent={parent.Name}");
+        CardDisableControlLogger.Info($"已为总览卡牌挂载禁用标记层: {holder.Name}, parent={parent.Name}");
     }
 
     public override void _Ready()
@@ -91,8 +93,8 @@ internal partial class CardDisableControlBanOverlay : Control
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
                 AutowrapMode = TextServer.AutowrapMode.Off,
-                Size = new Vector2(64f, 14f),
-                CustomMinimumSize = new Vector2(64f, 14f),
+                Size = new Vector2(52f, 14f),
+                CustomMinimumSize = new Vector2(52f, 14f),
                 Modulate = new Color(0.95f, 0.25f, 0.22f, 1f)
             };
             AddChild(_banLabel);
@@ -110,8 +112,8 @@ internal partial class CardDisableControlBanOverlay : Control
         bool canShow = ShouldShowAction(out string hiddenReason);
         bool isBanned = canShow && CardDisableControlBanState.IsBanned(_holder?.CardModel);
         bool visible = isBanned;
-        Rect2 cardRect = GetCardLocalRect();
-        Vector2 currentSize = cardRect.Size;
+        Rect2 descriptionRect = GetDescriptionRect();
+        Vector2 currentSize = descriptionRect.Size;
 
         if (_lastVisible == visible &&
             _lastBanned == isBanned &&
@@ -133,11 +135,11 @@ internal partial class CardDisableControlBanOverlay : Control
             _hasLoggedProbe = true;
             if (visible)
             {
-                CardDisableControlLogger.Info($"总览勾选可见: card={currentCardKey}, area={currentSize}");
+                CardDisableControlLogger.Info($"总览禁用标记可见: card={currentCardKey}, area={currentSize}");
             }
             else
             {
-                CardDisableControlLogger.Info($"总览勾选隐藏: card={currentCardKey}, reason={hiddenReason}, area={currentSize}");
+                CardDisableControlLogger.Info($"总览禁用标记隐藏: card={currentCardKey}, reason={hiddenReason}, area={currentSize}");
             }
         }
 
@@ -146,31 +148,31 @@ internal partial class CardDisableControlBanOverlay : Control
             return;
         }
 
-        int fontSize = ResolveTitleFontSize();
+        int fontSize = ResolveDescriptionFontSize();
         float textWidth = fontSize * 3.8f;
-        float textHeight = fontSize + 2f;
+        float textHeight = fontSize;
         _banLabel.AddThemeFontSizeOverride("font_size", fontSize);
         _banLabel.Text = "禁用中";
         _banLabel.Modulate = new Color(0.95f, 0.25f, 0.22f, 1f);
         _banLabel.Size = new Vector2(textWidth, textHeight);
 
-        float x = cardRect.Position.X + cardRect.Size.X - textWidth - RightPadding;
-        float y = cardRect.Position.Y + TopPadding;
+        float x = descriptionRect.Position.X + (descriptionRect.Size.X - textWidth) * 0.5f;
+        float y = descriptionRect.Position.Y + descriptionRect.Size.Y - textHeight - BottomPadding;
         _banLabel.Position = new Vector2(x, y);
     }
 
-    private int ResolveTitleFontSize()
+    private int ResolveDescriptionFontSize()
     {
-        Control? titleLabel = _holder?.CardNode?.GetNodeOrNull<Control>("%TitleLabel");
-        if (titleLabel != null)
+        Control? descriptionLabel = _holder?.CardNode?.GetNodeOrNull<Control>("%DescriptionLabel");
+        if (descriptionLabel != null)
         {
-            int size = titleLabel.GetThemeFontSize("normal_font_size");
+            int size = descriptionLabel.GetThemeFontSize("normal_font_size");
             if (size > 0)
             {
                 return size;
             }
 
-            size = titleLabel.GetThemeFontSize("font_size");
+            size = descriptionLabel.GetThemeFontSize("font_size");
             if (size > 0)
             {
                 return size;
@@ -180,8 +182,14 @@ internal partial class CardDisableControlBanOverlay : Control
         return 14;
     }
 
-    private Rect2 GetCardLocalRect()
+    private Rect2 GetDescriptionRect()
     {
+        Control? descriptionLabel = _holder?.CardNode?.GetNodeOrNull<Control>("%DescriptionLabel");
+        if (descriptionLabel != null && GodotObject.IsInstanceValid(descriptionLabel))
+        {
+            return new Rect2(descriptionLabel.Position, descriptionLabel.Size);
+        }
+
         if (_holder?.CardNode != null && GodotObject.IsInstanceValid(_holder.CardNode))
         {
             Vector2 size = Vector2.Zero;
@@ -239,10 +247,10 @@ internal partial class CardDisableControlBanOverlay : Control
             return false;
         }
 
-        Rect2 cardRect = GetCardLocalRect();
-        if (cardRect.Size.X <= 1f || cardRect.Size.Y <= 1f)
+        Rect2 descriptionRect = GetDescriptionRect();
+        if (descriptionRect.Size.X <= 1f || descriptionRect.Size.Y <= 1f)
         {
-            reason = "card_rect_unavailable";
+            reason = "description_rect_unavailable";
             return false;
         }
 
