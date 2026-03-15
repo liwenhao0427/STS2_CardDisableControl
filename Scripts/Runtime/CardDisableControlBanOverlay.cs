@@ -14,6 +14,9 @@ internal partial class CardDisableControlBanOverlay : Control
 
     private const float BottomPadding = 6f;
     private const float Gap = 4f;
+    // 预览勾选位置微调：负值=向左/向上
+    private const float PositionOffsetX = -18f;
+    private const float PositionOffsetY = -14f;
 
     private NGridCardHolder? _holder;
     private CheckBox? _banCheckBox;
@@ -168,8 +171,8 @@ internal partial class CardDisableControlBanOverlay : Control
         _banLabel.Size = new Vector2(textWidth, checkSize);
 
         float groupWidth = checkSize + Gap + textWidth;
-        float globalX = cardGlobalRect.Position.X + (cardGlobalRect.Size.X - groupWidth) * 0.5f;
-        float globalY = cardGlobalRect.Position.Y + cardGlobalRect.Size.Y + BottomPadding;
+        float globalX = cardGlobalRect.Position.X + (cardGlobalRect.Size.X - groupWidth) * 0.5f + PositionOffsetX;
+        float globalY = cardGlobalRect.Position.Y + cardGlobalRect.Size.Y + BottomPadding + PositionOffsetY;
         Vector2 localGroupPos = GlobalToParentLocal(new Vector2(globalX, globalY));
 
         Position = localGroupPos;
