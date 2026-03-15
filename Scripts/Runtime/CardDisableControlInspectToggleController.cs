@@ -80,7 +80,7 @@ internal partial class CardDisableControlInspectToggleController : Node
 
         if (_inspectCard == null)
         {
-            CardDisableControlLogger.Warn("璇︽儏椤电鐢ㄥ嬀閫夊垵濮嬪寲澶辫触锛氭湭鎵惧埌 Card 鑺傜偣銆?);
+            CardDisableControlLogger.Warn("详情页禁用勾选初始化失败：未找到 Card 节点。");
             return;
         }
 
@@ -105,7 +105,7 @@ internal partial class CardDisableControlInspectToggleController : Node
                 Name = BanLabelName,
                 FocusMode = Control.FocusModeEnum.None,
                 MouseFilter = Control.MouseFilterEnum.Ignore,
-                Text = "绂佺敤",
+                Text = "禁用",
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
                 AutowrapMode = TextServer.AutowrapMode.Off,
@@ -134,7 +134,7 @@ internal partial class CardDisableControlInspectToggleController : Node
         _banToggle.Size = _banToggle.CustomMinimumSize;
 
         _banLabel.AddThemeFontSizeOverride("font_size", fontSize);
-        _banLabel.Text = "绂佺敤";
+        _banLabel.Text = "禁用";
         _banLabel.Size = new Vector2(textWidth, checkSize);
 
         Rect2 descriptionRect = GetDescriptionRect();
@@ -252,11 +252,11 @@ internal partial class CardDisableControlInspectToggleController : Node
         CardModel? card = GetCurrentCard();
         if (card == null)
         {
-            CardDisableControlLogger.Warn("鐐瑰嚮璇︽儏椤电鐢ㄥ嬀閫夊け璐ワ細褰撳墠鍗＄墝涓虹┖銆?);
+            CardDisableControlLogger.Warn("点击详情页禁用勾选失败：当前卡牌为空。");
             return;
         }
 
-        CardDisableControlBanState.SetBanned(card, pressed, "璇︽儏椤靛嬀閫?);
+        CardDisableControlBanState.SetBanned(card, pressed, "详情页勾选");
     }
 
     private void OnBanStateChanged(string key, bool _)

@@ -96,7 +96,7 @@ internal partial class CardDisableControlBanOverlay : Control
             {
                 Name = "CardDisableControlGridBanCheck",
                 FocusMode = FocusModeEnum.None,
-                MouseFilter = MouseFilterEnum.Stop,
+                MouseFilter = MouseFilterEnum.Pass,
                 Size = new Vector2(14f, 14f),
                 CustomMinimumSize = new Vector2(14f, 14f)
             };
@@ -293,7 +293,7 @@ internal partial class CardDisableControlBanOverlay : Control
             return;
         }
 
-        CardDisableControlBanState.SetBanned(_holder.CardModel, pressed, "鎬昏鍕鹃€?);
+        CardDisableControlBanState.SetBanned(_holder.CardModel, pressed, "总览勾选");
     }
 
     private void OnBanStateChanged(string _, bool __)
@@ -301,3 +301,5 @@ internal partial class CardDisableControlBanOverlay : Control
         RefreshUi();
     }
 }
+
+
