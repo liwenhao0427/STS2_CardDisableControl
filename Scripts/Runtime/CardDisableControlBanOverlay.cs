@@ -3,6 +3,7 @@ using Godot;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.UI;
 using MegaCrit.Sts2.Core.Nodes;
+using MegaCrit.Sts2.Core.Nodes.Cards;
 using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
 
 namespace CardDisableControl.Scripts.Runtime;
@@ -11,7 +12,7 @@ internal partial class CardDisableControlBanOverlay : Control
 {
     public const string OverlayNodeName = "CardDisableControlBanOverlay";
 
-    private const float BottomRatio = 0.84f;
+    private const float BottomPadding = 8f;
     private const float Gap = 4f;
 
     private NGridCardHolder? _holder;
@@ -52,7 +53,7 @@ internal partial class CardDisableControlBanOverlay : Control
         };
 
         parent.AddChild(overlay);
-        CardDisableControlLogger.Info($"已为总览卡牌挂载禁用勾选层: {holder.Name}, parent={parent.Name}");
+        CardDisableControlLogger.Info($"宸蹭负鎬昏鍗＄墝鎸傝浇绂佺敤鍕鹃€夊眰: {holder.Name}, parent={parent.Name}");
     }
 
     public override void _Ready()
@@ -110,7 +111,7 @@ internal partial class CardDisableControlBanOverlay : Control
                 Name = "CardDisableControlGridBanLabel",
                 MouseFilter = MouseFilterEnum.Ignore,
                 FocusMode = FocusModeEnum.None,
-                Text = "禁用",
+                Text = "绂佺敤",
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
                 AutowrapMode = TextServer.AutowrapMode.Off,
@@ -132,7 +133,8 @@ internal partial class CardDisableControlBanOverlay : Control
         string? currentCardKey = CardDisableControlBanState.GetCardKey(_holder?.CardModel);
         bool visible = ShouldShowAction(out string hiddenReason);
         bool isBanned = visible && CardDisableControlBanState.IsBanned(_holder?.CardModel);
-        Vector2 currentSize = GetActionAreaSize();
+        Rect2 descriptionRect = GetDescriptionRect();
+        Vector2 currentSize = descriptionRect.Size;
 
         if (_lastVisible == visible &&
             _lastBanned == isBanned &&
@@ -155,11 +157,11 @@ internal partial class CardDisableControlBanOverlay : Control
             _hasLoggedProbe = true;
             if (visible)
             {
-                CardDisableControlLogger.Info($"总览勾选可见: card={currentCardKey}, area={currentSize}");
+                CardDisableControlLogger.Info($"鎬昏鍕鹃€夊彲瑙? card={currentCardKey}, area={currentSize}");
             }
             else
             {
-                CardDisableControlLogger.Info($"总览勾选隐藏: card={currentCardKey}, reason={hiddenReason}, area={currentSize}");
+                CardDisableControlLogger.Info($"鎬昏鍕鹃€夐殣钘? card={currentCardKey}, reason={hiddenReason}, area={currentSize}");
             }
         }
 
@@ -175,12 +177,12 @@ internal partial class CardDisableControlBanOverlay : Control
         _banCheckBox.CustomMinimumSize = new Vector2(checkSize, checkSize);
         _banCheckBox.Size = _banCheckBox.CustomMinimumSize;
         _banLabel.AddThemeFontSizeOverride("font_size", fontSize);
-        _banLabel.Text = "禁用";
+        _banLabel.Text = "绂佺敤";
         _banLabel.Size = new Vector2(textWidth, checkSize);
 
         float groupWidth = checkSize + Gap + textWidth;
-        float x = (currentSize.X - groupWidth) * 0.5f;
-        float y = currentSize.Y * BottomRatio;
+        float x = descriptionRect.Position.X + (descriptionRect.Size.X - groupWidth) * 0.5f;
+        float y = descriptionRect.Position.Y + descriptionRect.Size.Y - checkSize - BottomPadding;
 
         _banCheckBox.Position = new Vector2(x, y);
         _banLabel.Position = new Vector2(x + checkSize + Gap, y);
@@ -214,24 +216,26 @@ internal partial class CardDisableControlBanOverlay : Control
         return 14;
     }
 
-    private Vector2 GetActionAreaSize()
+    private Rect2 GetDescriptionRect()
     {
-        if (Size.X > 0f && Size.Y > 0f)
+        Control? descriptionLabel = _holder?.CardNode?.GetNodeOrNull<Control>("%DescriptionLabel");
+        if (descriptionLabel != null && GodotObject.IsInstanceValid(descriptionLabel))
         {
-            return Size;
+            return new Rect2(descriptionLabel.Position, descriptionLabel.Size);
         }
 
-        if (_holder?.CardNode != null && GodotObject.IsInstanceValid(_holder.CardNode))
+        if (_holder?.CardNode is NCard nCard && GodotObject.IsInstanceValid(nCard))
         {
-            return _holder.CardNode.Size;
+            Vector2 cardSize = nCard.GetCurrentSize();
+            return new Rect2(Vector2.Zero, cardSize);
         }
 
         if (_holder?.Hitbox != null && GodotObject.IsInstanceValid(_holder.Hitbox))
         {
-            return _holder.Hitbox.Size;
+            return new Rect2(Vector2.Zero, _holder.Hitbox.Size);
         }
 
-        return Size;
+        return new Rect2(Vector2.Zero, Size);
     }
 
     private bool ShouldShowAction(out string reason)
@@ -266,10 +270,10 @@ internal partial class CardDisableControlBanOverlay : Control
             return false;
         }
 
-        Vector2 area = GetActionAreaSize();
-        if (area.X < 120f || area.Y < 120f)
+        Rect2 descriptionRect = GetDescriptionRect();
+        if (descriptionRect.Size.X <= 1f || descriptionRect.Size.Y <= 1f)
         {
-            reason = "area_too_small";
+            reason = "description_rect_unavailable";
             return false;
         }
 
@@ -289,7 +293,7 @@ internal partial class CardDisableControlBanOverlay : Control
             return;
         }
 
-        CardDisableControlBanState.SetBanned(_holder.CardModel, pressed, "总览勾选");
+        CardDisableControlBanState.SetBanned(_holder.CardModel, pressed, "鎬昏鍕鹃€?);
     }
 
     private void OnBanStateChanged(string _, bool __)

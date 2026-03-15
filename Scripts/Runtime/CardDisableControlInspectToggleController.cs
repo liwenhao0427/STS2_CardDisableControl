@@ -14,7 +14,7 @@ internal partial class CardDisableControlInspectToggleController : Node
     private const string ControllerNodeName = "CardDisableControlInspectToggleController";
     private const string BanToggleName = "CardDisableControlInspectBanCheck";
     private const string BanLabelName = "CardDisableControlInspectBanLabel";
-    private const float BottomRatio = 0.84f;
+    private const float BottomPadding = 8f;
     private const float Gap = 4f;
 
     private static readonly FieldInfo? CardsField = AccessTools.Field(typeof(NInspectCardScreen), "_cards");
@@ -80,7 +80,7 @@ internal partial class CardDisableControlInspectToggleController : Node
 
         if (_inspectCard == null)
         {
-            CardDisableControlLogger.Warn("详情页禁用勾选初始化失败：未找到 Card 节点。");
+            CardDisableControlLogger.Warn("璇︽儏椤电鐢ㄥ嬀閫夊垵濮嬪寲澶辫触锛氭湭鎵惧埌 Card 鑺傜偣銆?);
             return;
         }
 
@@ -105,7 +105,7 @@ internal partial class CardDisableControlInspectToggleController : Node
                 Name = BanLabelName,
                 FocusMode = Control.FocusModeEnum.None,
                 MouseFilter = Control.MouseFilterEnum.Ignore,
-                Text = "禁用",
+                Text = "绂佺敤",
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
                 AutowrapMode = TextServer.AutowrapMode.Off,
@@ -134,13 +134,13 @@ internal partial class CardDisableControlInspectToggleController : Node
         _banToggle.Size = _banToggle.CustomMinimumSize;
 
         _banLabel.AddThemeFontSizeOverride("font_size", fontSize);
-        _banLabel.Text = "禁用";
+        _banLabel.Text = "绂佺敤";
         _banLabel.Size = new Vector2(textWidth, checkSize);
 
-        Vector2 size = _inspectCard.Size;
+        Rect2 descriptionRect = GetDescriptionRect();
         float groupWidth = checkSize + Gap + textWidth;
-        float x = (size.X - groupWidth) * 0.5f;
-        float y = size.Y * BottomRatio;
+        float x = descriptionRect.Position.X + (descriptionRect.Size.X - groupWidth) * 0.5f;
+        float y = descriptionRect.Position.Y + descriptionRect.Size.Y - checkSize - BottomPadding;
 
         _banToggle.Position = new Vector2(x, y);
         _banLabel.Position = new Vector2(x + checkSize + Gap, y);
@@ -168,6 +168,22 @@ internal partial class CardDisableControlInspectToggleController : Node
         }
 
         return 16;
+    }
+
+    private Rect2 GetDescriptionRect()
+    {
+        if (_inspectCard != null)
+        {
+            Control? descriptionLabel = _inspectCard.GetNodeOrNull<Control>("%DescriptionLabel");
+            if (descriptionLabel != null && GodotObject.IsInstanceValid(descriptionLabel))
+            {
+                return new Rect2(descriptionLabel.Position, descriptionLabel.Size);
+            }
+
+            return new Rect2(Vector2.Zero, _inspectCard.Size);
+        }
+
+        return new Rect2(Vector2.Zero, Vector2.Zero);
     }
 
     private void RefreshUi()
@@ -236,11 +252,11 @@ internal partial class CardDisableControlInspectToggleController : Node
         CardModel? card = GetCurrentCard();
         if (card == null)
         {
-            CardDisableControlLogger.Warn("点击详情页禁用勾选失败：当前卡牌为空。");
+            CardDisableControlLogger.Warn("鐐瑰嚮璇︽儏椤电鐢ㄥ嬀閫夊け璐ワ細褰撳墠鍗＄墝涓虹┖銆?);
             return;
         }
 
-        CardDisableControlBanState.SetBanned(card, pressed, "详情页勾选");
+        CardDisableControlBanState.SetBanned(card, pressed, "璇︽儏椤靛嬀閫?);
     }
 
     private void OnBanStateChanged(string key, bool _)
