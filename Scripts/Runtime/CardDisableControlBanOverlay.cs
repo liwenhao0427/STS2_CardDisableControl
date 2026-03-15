@@ -13,16 +13,15 @@ internal partial class CardDisableControlBanOverlay : Control
     public const string OverlayNodeName = "CardDisableControlBanOverlay";
 
     private const float BottomPadding = 6f;
-    private const float Gap = 4f;
     // 预览勾选位置微调：负值=向左/向上
     private const float PositionOffsetX = -18f;
     private const float PositionOffsetY = -28f;
+    private const string HintDefault = "鼠标中键点击禁用";
+    private const string HintBanned = "鼠标中键取消禁用";
 
     private NGridCardHolder? _holder;
     private ColorRect? _banBackground;
-    private CheckBox? _banCheckBox;
     private Label? _banLabel;
-    private bool _isSyncingUi;
 
     private bool _lastVisible;
     private bool _lastBanned;
@@ -66,19 +65,6 @@ internal partial class CardDisableControlBanOverlay : Control
     {
         CardDisableControlBanState.BanStateChanged -= OnBanStateChanged;
 
-        if (_banCheckBox != null)
-        {
-            _banCheckBox.Toggled -= OnCheckBoxToggled;
-        }
-        if (_banLabel != null)
-        {
-            _banLabel.GuiInput -= OnLabelGuiInput;
-        }
-        if (_banBackground != null)
-        {
-            _banBackground.GuiInput -= OnBackgroundGuiInput;
-        }
-
         base._ExitTree();
     }
 
@@ -95,25 +81,10 @@ internal partial class CardDisableControlBanOverlay : Control
             {
                 Name = "CardDisableControlGridBanBackground",
                 FocusMode = FocusModeEnum.None,
-                MouseFilter = MouseFilterEnum.Stop,
+                MouseFilter = MouseFilterEnum.Ignore,
                 Color = new Color(0f, 0f, 0f, 0.35f)
             };
-            _banBackground.GuiInput += OnBackgroundGuiInput;
             AddChild(_banBackground);
-        }
-
-        if (_banCheckBox == null)
-        {
-            _banCheckBox = new CheckBox
-            {
-                Name = "CardDisableControlGridBanCheck",
-                FocusMode = FocusModeEnum.None,
-                MouseFilter = MouseFilterEnum.Stop,
-                Size = new Vector2(14f, 14f),
-                CustomMinimumSize = new Vector2(14f, 14f)
-            };
-            _banCheckBox.Toggled += OnCheckBoxToggled;
-            AddChild(_banCheckBox);
         }
 
         if (_banLabel == null)
@@ -121,24 +92,23 @@ internal partial class CardDisableControlBanOverlay : Control
             _banLabel = new Label
             {
                 Name = "CardDisableControlGridBanLabel",
-                MouseFilter = MouseFilterEnum.Stop,
+                MouseFilter = MouseFilterEnum.Ignore,
                 FocusMode = FocusModeEnum.None,
-                Text = "禁用",
+                Text = HintDefault,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
                 AutowrapMode = TextServer.AutowrapMode.Off,
-                Size = new Vector2(38f, 14f),
-                CustomMinimumSize = new Vector2(38f, 14f),
+                Size = new Vector2(120f, 14f),
+                CustomMinimumSize = new Vector2(120f, 14f),
                 Modulate = new Color(0.95f, 0.85f, 0.2f, 1f)
             };
-            _banLabel.GuiInput += OnLabelGuiInput;
             AddChild(_banLabel);
         }
     }
 
     private void RefreshUi()
     {
-        if (_banCheckBox == null || _banLabel == null || _banBackground == null)
+        if (_banLabel == null || _banBackground == null)
         {
             return;
         }
@@ -162,7 +132,6 @@ internal partial class CardDisableControlBanOverlay : Control
         _lastSize = currentSize;
         _lastCardKey = currentCardKey;
 
-        _banCheckBox.Visible = visible;
         _banLabel.Visible = visible;
         _banBackground.Visible = visible;
 
@@ -185,34 +154,27 @@ internal partial class CardDisableControlBanOverlay : Control
         }
 
         int fontSize = ResolveDescriptionFontSize();
-        string labelText = isBanned ? "[x] 禁用" : "[ ] 禁用";
-        float textWidth = fontSize * 5.2f;
-        float checkSize = fontSize;
+        string labelText = isBanned ? HintBanned : HintDefault;
+        float labelHeight = fontSize;
+        float textWidth = fontSize * 8.5f;
 
-        _banCheckBox.CustomMinimumSize = new Vector2(checkSize, checkSize);
-        _banCheckBox.Size = _banCheckBox.CustomMinimumSize;
         _banLabel.AddThemeFontSizeOverride("font_size", fontSize);
         _banLabel.Text = labelText;
-        _banLabel.Size = new Vector2(textWidth, checkSize);
+        _banLabel.Modulate = isBanned
+            ? new Color(0.95f, 0.35f, 0.25f, 1f)
+            : new Color(0.95f, 0.85f, 0.2f, 1f);
+        _banLabel.Size = new Vector2(textWidth, labelHeight);
 
-        float groupWidth = checkSize + Gap + textWidth;
+        float groupWidth = textWidth;
         float globalX = cardGlobalRect.Position.X + (cardGlobalRect.Size.X - groupWidth) * 0.5f + PositionOffsetX;
         float globalY = cardGlobalRect.Position.Y + cardGlobalRect.Size.Y + BottomPadding + PositionOffsetY;
         Vector2 localGroupPos = GlobalToParentLocal(new Vector2(globalX, globalY));
 
         Position = localGroupPos;
-        Size = new Vector2(groupWidth, checkSize);
+        Size = new Vector2(groupWidth, labelHeight);
         _banBackground.Position = new Vector2(-2f, -1f);
-        _banBackground.Size = new Vector2(groupWidth + 4f, checkSize + 2f);
-        _banCheckBox.Position = Vector2.Zero;
-        _banLabel.Position = new Vector2(checkSize + Gap, 0f);
-
-        if (_banCheckBox.ButtonPressed != isBanned)
-        {
-            _isSyncingUi = true;
-            _banCheckBox.ButtonPressed = isBanned;
-            _isSyncingUi = false;
-        }
+        _banBackground.Size = new Vector2(groupWidth + 4f, labelHeight + 2f);
+        _banLabel.Position = Vector2.Zero;
     }
 
     private int ResolveDescriptionFontSize()
@@ -308,21 +270,6 @@ internal partial class CardDisableControlBanOverlay : Control
         return true;
     }
 
-    private void OnCheckBoxToggled(bool pressed)
-    {
-        if (_isSyncingUi)
-        {
-            return;
-        }
-
-        if (_holder == null || !GodotObject.IsInstanceValid(_holder) || _holder.CardModel == null)
-        {
-            return;
-        }
-
-        CardDisableControlBanState.SetBanned(_holder.CardModel, pressed, "总览勾选");
-    }
-
     private Vector2 GlobalToParentLocal(Vector2 globalPosition)
     {
         if (GetParent() is not CanvasItem parentCanvas)
@@ -337,33 +284,6 @@ internal partial class CardDisableControlBanOverlay : Control
     private void OnBanStateChanged(string _, bool __)
     {
         RefreshUi();
-    }
-
-    private void OnLabelGuiInput(InputEvent inputEvent)
-    {
-        ToggleByAuxClick(inputEvent);
-    }
-
-    private void OnBackgroundGuiInput(InputEvent inputEvent)
-    {
-        ToggleByAuxClick(inputEvent);
-    }
-
-    private void ToggleByAuxClick(InputEvent inputEvent)
-    {
-        if (_banCheckBox == null || _isSyncingUi)
-        {
-            return;
-        }
-
-        if (inputEvent is not InputEventMouseButton mouseEvent ||
-            mouseEvent.ButtonIndex != MouseButton.Left ||
-            mouseEvent.Pressed)
-        {
-            return;
-        }
-
-        _banCheckBox.ButtonPressed = !_banCheckBox.ButtonPressed;
     }
 }
 
