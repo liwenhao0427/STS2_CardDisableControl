@@ -12,7 +12,7 @@ namespace CardDisableControl.Scripts.Runtime;
 internal partial class CardDisableControlInspectToggleController : Node
 {
     private const string ControllerNodeName = "CardDisableControlInspectToggleController";
-    private const string BanToggleName = "CardDisableControlBanTickbox";
+    private const string BanToggleName = "CardDisableControlBanCheckbox";
     private const string BanLabelName = "CardDisableControlBanLabel";
     private const float SideOffset = 180f;
 
@@ -23,7 +23,7 @@ internal partial class CardDisableControlInspectToggleController : Node
     private NInspectCardScreen? _screen;
     private NTickbox? _upgradeTickbox;
     private Control? _upgradeLabel;
-    private NTickbox? _banToggle;
+    private CheckBox? _banToggle;
     private Control? _banLabel;
     private bool _isSyncingUi;
     private bool _layoutInitialized;
@@ -50,7 +50,7 @@ internal partial class CardDisableControlInspectToggleController : Node
     public static void RefreshFor(NInspectCardScreen screen)
     {
         CardDisableControlInspectToggleController? controller = screen.GetNodeOrNull<CardDisableControlInspectToggleController>(ControllerNodeName);
-        controller?.RefreshUi();
+        controller?.CallDeferred(nameof(RefreshUi));
     }
 
     public override void _EnterTree()
@@ -62,6 +62,11 @@ internal partial class CardDisableControlInspectToggleController : Node
     public override void _ExitTree()
     {
         CardDisableControlBanState.BanStateChanged -= OnBanStateChanged;
+        if (_banToggle != null)
+        {
+            _banToggle.Toggled -= OnBanToggleChanged;
+        }
+
         base._ExitTree();
     }
 
@@ -91,13 +96,6 @@ internal partial class CardDisableControlInspectToggleController : Node
 
         if (_banToggle == null)
         {
-            Node tickboxCopy = _upgradeTickbox.Duplicate((int)(Node.DuplicateFlags.Scripts | Node.DuplicateFlags.UseInstantiation));
-            if (tickboxCopy is not NTickbox banToggle)
-            {
-                CardDisableControlLogger.Warn("详情页禁用勾选初始化失败：复制升级勾选节点失败。");
-                return;
-            }
-
             Node? tickboxParent = _upgradeTickbox.GetParent();
             if (tickboxParent == null)
             {
@@ -105,10 +103,21 @@ internal partial class CardDisableControlInspectToggleController : Node
                 return;
             }
 
-            _banToggle = banToggle;
-            _banToggle.Name = BanToggleName;
+            _banToggle = new CheckBox
+            {
+                Name = BanToggleName,
+                FocusMode = Control.FocusModeEnum.None,
+                MouseFilter = Control.MouseFilterEnum.Stop,
+                Scale = _upgradeTickbox.Scale,
+                Size = _upgradeTickbox.Size,
+                CustomMinimumSize = _upgradeTickbox.CustomMinimumSize,
+                Theme = _upgradeTickbox.Theme,
+                ThemeTypeVariation = _upgradeTickbox.ThemeTypeVariation,
+                Modulate = _upgradeTickbox.Modulate
+            };
+
+            _banToggle.Toggled += OnBanToggleChanged;
             tickboxParent.AddChild(_banToggle);
-            _banToggle.Connect(NTickbox.SignalName.Toggled, Callable.From<NTickbox>(OnBanToggleChanged));
         }
 
         if (_banLabel == null)
@@ -129,24 +138,36 @@ internal partial class CardDisableControlInspectToggleController : Node
 
             _banLabel = banLabel;
             _banLabel.Name = BanLabelName;
-            if (_banLabel.HasMethod("SetTextAutoSize"))
-            {
-                _banLabel.Call("SetTextAutoSize", "禁用卡牌");
-            }
-            else
-            {
-                _banLabel.Set("text", "禁用卡牌");
-            }
-
+            SetLabelText(_banLabel, "禁用卡牌");
             labelParent.AddChild(_banLabel);
         }
 
-        ApplySymmetricLayout();
+        ApplyLayout();
         if (!_styleAppliedLogged)
         {
             _styleAppliedLogged = true;
-            CardDisableControlLogger.Info("详情页禁用勾选已应用与查看升级一致的样式与对称布局。");
+            CardDisableControlLogger.Info("详情页禁用勾选已应用：左侧查看升级，右侧禁用卡牌。");
         }
+    }
+
+    private void SetLabelText(Control label, string text)
+    {
+        if (label.HasMethod("SetTextAutoSize"))
+        {
+            label.Call("SetTextAutoSize", text);
+        }
+
+        if (label.HasMethod("SetText"))
+        {
+            label.Call("SetText", text);
+        }
+
+        if (label.HasMethod("SetPlaintext"))
+        {
+            label.Call("SetPlaintext", text);
+        }
+
+        label.Set("text", text);
     }
 
     private void ResetInvalidReferences()
@@ -172,17 +193,18 @@ internal partial class CardDisableControlInspectToggleController : Node
         }
     }
 
-    private void ApplySymmetricLayout()
+    private void ApplyLayout()
     {
         if (_upgradeTickbox == null || _upgradeLabel == null || _banToggle == null || _banLabel == null)
         {
             return;
         }
 
+        // 设计要求：左侧“查看升级”，右侧“禁用卡牌”。
         _upgradeTickbox.Position = _upgradeTickboxBasePos + Vector2.Left * SideOffset;
         _upgradeLabel.Position = _upgradeLabelBasePos + Vector2.Left * SideOffset;
-        _banToggle.Position = _upgradeTickboxBasePos + Vector2.Right * SideOffset;
-        _banLabel.Position = _upgradeLabelBasePos + Vector2.Right * SideOffset;
+        _banToggle.Position = _upgradeTickboxBasePos;
+        _banLabel.Position = _upgradeLabelBasePos;
     }
 
     private void RefreshUi()
@@ -209,41 +231,10 @@ internal partial class CardDisableControlInspectToggleController : Node
         }
 
         bool isBanned = CardDisableControlBanState.IsBanned(currentCard);
-        SetTickboxStateSafely(_banToggle, isBanned);
-
-        string? key = CardDisableControlBanState.GetCardKey(currentCard);
-        CardDisableControlLogger.Info($"详情页同步禁用勾选: {key} => {(isBanned ? "已禁用" : "未禁用")}");
-    }
-
-    private void SetTickboxStateSafely(NTickbox tickbox, bool isTicked)
-    {
-        bool currentValue;
-        try
+        if (_banToggle.ButtonPressed != isBanned)
         {
-            currentValue = tickbox.IsTicked;
-        }
-        catch (NullReferenceException exception)
-        {
-            CardDisableControlLogger.Warn($"详情页禁用勾选读取状态失败，将在下次刷新重试：{exception.Message}");
-            return;
-        }
-
-        if (currentValue == isTicked)
-        {
-            return;
-        }
-
-        _isSyncingUi = true;
-        try
-        {
-            tickbox.IsTicked = isTicked;
-        }
-        catch (NullReferenceException exception)
-        {
-            CardDisableControlLogger.Warn($"详情页禁用勾选同步失败，将在下次刷新重试：{exception.Message}");
-        }
-        finally
-        {
+            _isSyncingUi = true;
+            _banToggle.ButtonPressed = isBanned;
             _isSyncingUi = false;
         }
     }
@@ -269,7 +260,7 @@ internal partial class CardDisableControlInspectToggleController : Node
         return cards[index];
     }
 
-    private void OnBanToggleChanged(NTickbox tickbox)
+    private void OnBanToggleChanged(bool pressed)
     {
         if (_isSyncingUi)
         {
@@ -284,8 +275,8 @@ internal partial class CardDisableControlInspectToggleController : Node
         }
 
         string? key = CardDisableControlBanState.GetCardKey(card);
-        CardDisableControlLogger.Info($"点击详情页禁用勾选: {key} => {(tickbox.IsTicked ? "禁用" : "解禁")}");
-        CardDisableControlBanState.SetBanned(card, tickbox.IsTicked, "详情页勾选");
+        CardDisableControlLogger.Info($"点击详情页禁用勾选: {key} => {(pressed ? "禁用" : "解禁")}");
+        CardDisableControlBanState.SetBanned(card, pressed, "详情页勾选");
     }
 
     private void OnBanStateChanged(string key, bool _)
@@ -302,6 +293,6 @@ internal partial class CardDisableControlInspectToggleController : Node
             return;
         }
 
-        RefreshUi();
+        CallDeferred(nameof(RefreshUi));
     }
 }
