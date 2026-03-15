@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
 using HarmonyLib;
 using Godot;
 using CardDisableControl.Scripts.Runtime;
@@ -69,14 +67,26 @@ internal static class CardDisableControlHotkeyPatch
             return;
         }
 
-        if (ActiveScreenContext.Instance.GetCurrentScreen() is not NCardLibrary)
+        if (ActiveScreenContext.Instance.GetCurrentScreen() is not NCardLibrary cardLibraryScreen)
         {
+            CardDisableControlLogger.Info("检测到 B 键，但当前不在卡牌总览界面，忽略。");
             return;
         }
 
         NGridCardHolder? holder = CardDisableControlUiState.GetFocusedCardLibraryHolder();
         if (holder == null || !GodotObject.IsInstanceValid(holder) || holder.CardModel == null || !CardDisableControlUiState.IsCardLibraryHolder(holder))
         {
+            Vector2 mousePosition = cardLibraryScreen.GetViewport().GetMousePosition();
+            holder = CardDisableControlUiState.TryFindHoveredCardLibraryHolder(cardLibraryScreen, mousePosition);
+            if (holder != null)
+            {
+                CardDisableControlLogger.Info($"B 键回退命中鼠标悬停卡牌: {holder.Name}");
+            }
+        }
+
+        if (holder == null || !GodotObject.IsInstanceValid(holder) || holder.CardModel == null)
+        {
+            CardDisableControlLogger.Info("检测到 B 键，但未找到有效的总览卡牌 holder。");
             return;
         }
 
@@ -84,11 +94,19 @@ internal static class CardDisableControlHotkeyPatch
         bool isMouseOver = holder.GetGlobalRect().HasPoint(holder.GetViewport().GetMousePosition());
         if (!hasFocus && !isMouseOver)
         {
+            CardDisableControlLogger.Info("检测到 B 键，但目标卡牌既未聚焦也未悬停，忽略。");
+            return;
+        }
+
+        string? cardKey = CardDisableControlBanState.GetCardKey(holder.CardModel);
+        if (string.IsNullOrWhiteSpace(cardKey))
+        {
+            CardDisableControlLogger.Warn("检测到 B 键，但无法解析卡牌 ModelId。");
             return;
         }
 
         bool isBanned = CardDisableControlBanState.Toggle(holder.CardModel, "总览快捷键 B");
-        CardDisableControlLogger.Info($"快捷键 B 已{(isBanned ? "禁用" : "解禁")}卡牌: {CardDisableControlBanState.GetCardKey(holder.CardModel)}");
+        CardDisableControlLogger.Info($"快捷键 B 已{(isBanned ? "禁用" : "解禁")}卡牌: {cardKey}");
     }
 }
 
@@ -110,6 +128,7 @@ internal static class CardDisableControlInspectReadyPatch
     {
         CardDisableControlInspectToggleController.EnsureAttached(__instance);
         CardDisableControlInspectToggleController.RefreshFor(__instance);
+        CardDisableControlLogger.Info("详情页已挂载禁用卡牌勾选控制器。");
     }
 }
 
@@ -167,4 +186,3 @@ internal static class CardDisableControlTransformPoolPatch
         originalOptions = CardDisableControlBanState.FilterCardsWithFallback(originalOptions, "非战斗转化卡池");
     }
 }
-

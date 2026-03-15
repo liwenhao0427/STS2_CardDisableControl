@@ -91,7 +91,7 @@ internal partial class CardDisableControlInspectToggleController : Node
             ButtonPressed = false,
             FocusMode = Control.FocusModeEnum.All,
             MouseFilter = Control.MouseFilterEnum.Stop,
-            TooltipText = "勾选后该卡牌不会进入随机奖励池。"
+            TooltipText = "勾选后该卡牌不会进入长期随机出卡池。"
         };
         _banToggle.Toggled += OnBanToggleChanged;
 
@@ -106,6 +106,7 @@ internal partial class CardDisableControlInspectToggleController : Node
         _container.AddChild(_banLabel);
         parent.AddChild(_container);
 
+        CardDisableControlLogger.Info("详情页已创建“禁用卡牌”勾选项。");
         RefreshUi();
     }
 
@@ -130,6 +131,7 @@ internal partial class CardDisableControlInspectToggleController : Node
             return;
         }
 
+        string? key = CardDisableControlBanState.GetCardKey(currentCard);
         bool isBanned = CardDisableControlBanState.IsBanned(currentCard);
         if (_banToggle.ButtonPressed != isBanned)
         {
@@ -137,6 +139,8 @@ internal partial class CardDisableControlInspectToggleController : Node
             _banToggle.ButtonPressed = isBanned;
             _isSyncingUi = false;
         }
+
+        CardDisableControlLogger.Info($"详情页同步禁用勾选：{key} => {(isBanned ? "已禁用" : "未禁用")}");
     }
 
     private CardModel? GetCurrentCard()
@@ -170,9 +174,12 @@ internal partial class CardDisableControlInspectToggleController : Node
         CardModel? card = GetCurrentCard();
         if (card == null)
         {
+            CardDisableControlLogger.Warn("点击详情页禁用勾选失败：当前卡牌为空。");
             return;
         }
 
+        string? key = CardDisableControlBanState.GetCardKey(card);
+        CardDisableControlLogger.Info($"点击详情页禁用勾选：{key} => {(isPressed ? "禁用" : "解禁")}");
         CardDisableControlBanState.SetBanned(card, isPressed, "详情页勾选");
     }
 
@@ -193,4 +200,3 @@ internal partial class CardDisableControlInspectToggleController : Node
         RefreshUi();
     }
 }
-

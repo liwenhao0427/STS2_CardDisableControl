@@ -11,6 +11,6 @@ internal static class CardDisableControlPatch
     [HarmonyPatch(typeof(RunManager), nameof(RunManager.Launch))]
     private static void PostfixRunManagerLaunch()
     {
-        CardDisableControlLogger.Info("检测到 Run 启动，卡牌禁用控制已启用。");
+        CardDisableControlLogger.Info("检测到 Run 启动，卡牌禁用控制补丁已激活。");
     }
 }

@@ -29,6 +29,7 @@ internal partial class CardDisableControlBanOverlay : Control
         };
 
         holder.AddChild(overlay);
+        CardDisableControlLogger.Info($"已为总览卡牌挂载红X覆盖层: {holder.Name}");
     }
 
     public override void _Ready()

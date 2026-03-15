@@ -174,7 +174,38 @@ internal static class CardDisableControlBanState
             return null;
         }
 
-        return card.CanonicalInstance.Id.ToString();
+        // 不同来源的卡牌实例可能没有可用的 CanonicalInstance，先尝试 canonical，再回退实例 Id。
+        try
+        {
+            CardModel? canonical = card.CanonicalInstance;
+            if (canonical != null)
+            {
+                string canonicalKey = canonical.Id.ToString();
+                if (!string.IsNullOrWhiteSpace(canonicalKey))
+                {
+                    return canonicalKey;
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            CardDisableControlLogger.Warn($"读取 CanonicalInstance 失败，回退实例 Id。异常: {exception.Message}");
+        }
+
+        try
+        {
+            string fallbackKey = card.Id.ToString();
+            if (!string.IsNullOrWhiteSpace(fallbackKey))
+            {
+                return fallbackKey;
+            }
+        }
+        catch (Exception exception)
+        {
+            CardDisableControlLogger.Error($"读取卡牌实例 Id 失败: {exception}");
+        }
+
+        return null;
     }
 
     private static bool SetBannedUnsafe(string key, bool banned)
@@ -271,6 +302,7 @@ internal static class CardDisableControlBanState
 
             string json = JsonSerializer.Serialize(settings, JsonOptions);
             File.WriteAllText(settingsPath, json);
+            CardDisableControlLogger.Info($"已写入禁用配置: {settingsPath}，共 {settings.BannedCards.Count} 张卡。");
         }
         catch (Exception exception)
         {
