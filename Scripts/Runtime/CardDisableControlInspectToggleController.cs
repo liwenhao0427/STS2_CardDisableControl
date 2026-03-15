@@ -25,6 +25,7 @@ internal partial class CardDisableControlInspectToggleController : Node
     private Control? _upgradeLabel;
     private CheckBox? _banToggle;
     private Control? _banLabel;
+
     private bool _isSyncingUi;
     private bool _layoutInitialized;
     private bool _styleAppliedLogged;
@@ -62,6 +63,7 @@ internal partial class CardDisableControlInspectToggleController : Node
     public override void _ExitTree()
     {
         CardDisableControlBanState.BanStateChanged -= OnBanStateChanged;
+
         if (_banToggle != null)
         {
             _banToggle.Toggled -= OnBanToggleChanged;
@@ -108,9 +110,9 @@ internal partial class CardDisableControlInspectToggleController : Node
                 Name = BanToggleName,
                 FocusMode = Control.FocusModeEnum.None,
                 MouseFilter = Control.MouseFilterEnum.Stop,
-                Scale = _upgradeTickbox.Scale,
                 Size = _upgradeTickbox.Size,
                 CustomMinimumSize = _upgradeTickbox.CustomMinimumSize,
+                Scale = _upgradeTickbox.Scale,
                 Theme = _upgradeTickbox.Theme,
                 ThemeTypeVariation = _upgradeTickbox.ThemeTypeVariation,
                 Modulate = _upgradeTickbox.Modulate
@@ -143,6 +145,7 @@ internal partial class CardDisableControlInspectToggleController : Node
         }
 
         ApplyLayout();
+
         if (!_styleAppliedLogged)
         {
             _styleAppliedLogged = true;
@@ -200,11 +203,10 @@ internal partial class CardDisableControlInspectToggleController : Node
             return;
         }
 
-        // 设计要求：左侧“查看升级”，右侧“禁用卡牌”。
         _upgradeTickbox.Position = _upgradeTickboxBasePos + Vector2.Left * SideOffset;
         _upgradeLabel.Position = _upgradeLabelBasePos + Vector2.Left * SideOffset;
-        _banToggle.Position = _upgradeTickboxBasePos;
-        _banLabel.Position = _upgradeLabelBasePos;
+        _banToggle.Position = _upgradeTickboxBasePos + Vector2.Right * SideOffset;
+        _banLabel.Position = _upgradeLabelBasePos + Vector2.Right * SideOffset;
     }
 
     private void RefreshUi()
@@ -222,6 +224,7 @@ internal partial class CardDisableControlInspectToggleController : Node
 
         CardModel? currentCard = GetCurrentCard();
         bool visible = currentCard != null;
+
         _banToggle.Visible = visible;
         _banLabel.Visible = visible;
 
@@ -274,8 +277,6 @@ internal partial class CardDisableControlInspectToggleController : Node
             return;
         }
 
-        string? key = CardDisableControlBanState.GetCardKey(card);
-        CardDisableControlLogger.Info($"点击详情页禁用勾选: {key} => {(pressed ? "禁用" : "解禁")}");
         CardDisableControlBanState.SetBanned(card, pressed, "详情页勾选");
     }
 
