@@ -12,15 +12,10 @@ internal partial class CardDisableControlBanOverlay : Control
 {
     public const string OverlayNodeName = "CardDisableControlBanOverlay";
 
-    private const float BottomPadding = 6f;
-    // 预览勾选位置微调：负值=向左/向上
-    private const float PositionOffsetX = -18f;
-    private const float PositionOffsetY = -28f;
-    private const string HintDefault = "鼠标中键点击禁用";
-    private const string HintBanned = "鼠标中键取消禁用";
+    private const float TopPadding = 4f;
+    private const float RightPadding = 6f;
 
     private NGridCardHolder? _holder;
-    private ColorRect? _banBackground;
     private Label? _banLabel;
 
     private bool _lastVisible;
@@ -31,16 +26,24 @@ internal partial class CardDisableControlBanOverlay : Control
 
     public static void EnsureAttached(NGridCardHolder holder)
     {
-        Node parent = holder.GetParent() ?? holder;
-        string overlayNodeName = $"{OverlayNodeName}_{holder.GetInstanceId()}";
-        if (parent.GetNodeOrNull<CardDisableControlBanOverlay>(overlayNodeName) != null)
+        Node parent = holder;
+        if (holder.CardNode != null)
+        {
+            parent = holder.CardNode;
+        }
+        else if (holder.Hitbox is Node hitboxNode)
+        {
+            parent = hitboxNode;
+        }
+
+        if (parent.GetNodeOrNull<CardDisableControlBanOverlay>(OverlayNodeName) != null)
         {
             return;
         }
 
         CardDisableControlBanOverlay overlay = new()
         {
-            Name = overlayNodeName,
+            Name = OverlayNodeName,
             _holder = holder
         };
 
@@ -51,9 +54,11 @@ internal partial class CardDisableControlBanOverlay : Control
     public override void _Ready()
     {
         MouseFilter = MouseFilterEnum.Ignore;
-        SetAnchorsPreset(LayoutPreset.TopLeft);
-        Position = Vector2.Zero;
-        Size = Vector2.Zero;
+        SetAnchorsPreset(LayoutPreset.FullRect);
+        OffsetLeft = 0f;
+        OffsetTop = 0f;
+        OffsetRight = 0f;
+        OffsetBottom = 0f;
         ZIndex = 500;
 
         EnsureControls();
@@ -75,18 +80,6 @@ internal partial class CardDisableControlBanOverlay : Control
 
     private void EnsureControls()
     {
-        if (_banBackground == null)
-        {
-            _banBackground = new ColorRect
-            {
-                Name = "CardDisableControlGridBanBackground",
-                FocusMode = FocusModeEnum.None,
-                MouseFilter = MouseFilterEnum.Ignore,
-                Color = new Color(0f, 0f, 0f, 0.35f)
-            };
-            AddChild(_banBackground);
-        }
-
         if (_banLabel == null)
         {
             _banLabel = new Label
@@ -94,13 +87,13 @@ internal partial class CardDisableControlBanOverlay : Control
                 Name = "CardDisableControlGridBanLabel",
                 MouseFilter = MouseFilterEnum.Ignore,
                 FocusMode = FocusModeEnum.None,
-                Text = HintDefault,
+                Text = "禁用中",
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
                 AutowrapMode = TextServer.AutowrapMode.Off,
-                Size = new Vector2(120f, 14f),
-                CustomMinimumSize = new Vector2(120f, 14f),
-                Modulate = new Color(0.95f, 0.85f, 0.2f, 1f)
+                Size = new Vector2(64f, 14f),
+                CustomMinimumSize = new Vector2(64f, 14f),
+                Modulate = new Color(0.95f, 0.25f, 0.22f, 1f)
             };
             AddChild(_banLabel);
         }
@@ -108,16 +101,17 @@ internal partial class CardDisableControlBanOverlay : Control
 
     private void RefreshUi()
     {
-        if (_banLabel == null || _banBackground == null)
+        if (_banLabel == null)
         {
             return;
         }
 
         string? currentCardKey = CardDisableControlBanState.GetCardKey(_holder?.CardModel);
-        bool visible = ShouldShowAction(out string hiddenReason);
-        bool isBanned = visible && CardDisableControlBanState.IsBanned(_holder?.CardModel);
-        Rect2 cardGlobalRect = GetCardGlobalRect();
-        Vector2 currentSize = cardGlobalRect.Size;
+        bool canShow = ShouldShowAction(out string hiddenReason);
+        bool isBanned = canShow && CardDisableControlBanState.IsBanned(_holder?.CardModel);
+        bool visible = isBanned;
+        Rect2 cardRect = GetCardLocalRect();
+        Vector2 currentSize = cardRect.Size;
 
         if (_lastVisible == visible &&
             _lastBanned == isBanned &&
@@ -133,7 +127,6 @@ internal partial class CardDisableControlBanOverlay : Control
         _lastCardKey = currentCardKey;
 
         _banLabel.Visible = visible;
-        _banBackground.Visible = visible;
 
         if (!_hasLoggedProbe || !visible)
         {
@@ -153,42 +146,31 @@ internal partial class CardDisableControlBanOverlay : Control
             return;
         }
 
-        int fontSize = ResolveDescriptionFontSize();
-        string labelText = isBanned ? HintBanned : HintDefault;
-        float labelHeight = fontSize;
-        float textWidth = fontSize * 8.5f;
-
+        int fontSize = ResolveTitleFontSize();
+        float textWidth = fontSize * 3.8f;
+        float textHeight = fontSize + 2f;
         _banLabel.AddThemeFontSizeOverride("font_size", fontSize);
-        _banLabel.Text = labelText;
-        _banLabel.Modulate = isBanned
-            ? new Color(0.95f, 0.35f, 0.25f, 1f)
-            : new Color(0.95f, 0.85f, 0.2f, 1f);
-        _banLabel.Size = new Vector2(textWidth, labelHeight);
+        _banLabel.Text = "禁用中";
+        _banLabel.Modulate = new Color(0.95f, 0.25f, 0.22f, 1f);
+        _banLabel.Size = new Vector2(textWidth, textHeight);
 
-        float groupWidth = textWidth;
-        float globalX = cardGlobalRect.Position.X + (cardGlobalRect.Size.X - groupWidth) * 0.5f + PositionOffsetX;
-        float globalY = cardGlobalRect.Position.Y + cardGlobalRect.Size.Y + BottomPadding + PositionOffsetY;
-        Vector2 localGroupPos = GlobalToParentLocal(new Vector2(globalX, globalY));
-
-        Position = localGroupPos;
-        Size = new Vector2(groupWidth, labelHeight);
-        _banBackground.Position = new Vector2(-2f, -1f);
-        _banBackground.Size = new Vector2(groupWidth + 4f, labelHeight + 2f);
-        _banLabel.Position = Vector2.Zero;
+        float x = cardRect.Position.X + cardRect.Size.X - textWidth - RightPadding;
+        float y = cardRect.Position.Y + TopPadding;
+        _banLabel.Position = new Vector2(x, y);
     }
 
-    private int ResolveDescriptionFontSize()
+    private int ResolveTitleFontSize()
     {
-        Control? descriptionLabel = _holder?.CardNode?.GetNodeOrNull<Control>("%DescriptionLabel");
-        if (descriptionLabel != null)
+        Control? titleLabel = _holder?.CardNode?.GetNodeOrNull<Control>("%TitleLabel");
+        if (titleLabel != null)
         {
-            int size = descriptionLabel.GetThemeFontSize("normal_font_size");
+            int size = titleLabel.GetThemeFontSize("normal_font_size");
             if (size > 0)
             {
                 return size;
             }
 
-            size = descriptionLabel.GetThemeFontSize("font_size");
+            size = titleLabel.GetThemeFontSize("font_size");
             if (size > 0)
             {
                 return size;
@@ -198,17 +180,10 @@ internal partial class CardDisableControlBanOverlay : Control
         return 14;
     }
 
-    private Rect2 GetCardGlobalRect()
+    private Rect2 GetCardLocalRect()
     {
-        // 总览定位优先使用 Hitbox（更贴近网格中卡牌实际显示与命中区域）
-        if (_holder?.Hitbox != null && GodotObject.IsInstanceValid(_holder.Hitbox))
-        {
-            return new Rect2(_holder.Hitbox.GetGlobalTransformWithCanvas().Origin, _holder.Hitbox.Size);
-        }
-
         if (_holder?.CardNode != null && GodotObject.IsInstanceValid(_holder.CardNode))
         {
-            Vector2 origin = _holder.CardNode.GetGlobalTransformWithCanvas().Origin;
             Vector2 size = Vector2.Zero;
 
             if (_holder.CardNode is NCard nCard && GodotObject.IsInstanceValid(nCard))
@@ -221,7 +196,12 @@ internal partial class CardDisableControlBanOverlay : Control
                 size = cardControl.Size;
             }
 
-            return new Rect2(origin, size);
+            return new Rect2(Vector2.Zero, size);
+        }
+
+        if (_holder?.Hitbox != null && GodotObject.IsInstanceValid(_holder.Hitbox))
+        {
+            return new Rect2(Vector2.Zero, _holder.Hitbox.Size);
         }
 
         return new Rect2(Vector2.Zero, Vector2.Zero);
@@ -259,8 +239,8 @@ internal partial class CardDisableControlBanOverlay : Control
             return false;
         }
 
-        Rect2 cardGlobalRect = GetCardGlobalRect();
-        if (cardGlobalRect.Size.X <= 1f || cardGlobalRect.Size.Y <= 1f)
+        Rect2 cardRect = GetCardLocalRect();
+        if (cardRect.Size.X <= 1f || cardRect.Size.Y <= 1f)
         {
             reason = "card_rect_unavailable";
             return false;
@@ -268,17 +248,6 @@ internal partial class CardDisableControlBanOverlay : Control
 
         reason = "ok";
         return true;
-    }
-
-    private Vector2 GlobalToParentLocal(Vector2 globalPosition)
-    {
-        if (GetParent() is not CanvasItem parentCanvas)
-        {
-            return globalPosition;
-        }
-
-        Transform2D inverse = parentCanvas.GetGlobalTransformWithCanvas().AffineInverse();
-        return inverse * globalPosition;
     }
 
     private void OnBanStateChanged(string _, bool __)
