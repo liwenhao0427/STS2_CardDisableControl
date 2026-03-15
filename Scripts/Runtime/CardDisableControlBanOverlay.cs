@@ -12,7 +12,7 @@ internal partial class CardDisableControlBanOverlay : Control
 {
     public const string OverlayNodeName = "CardDisableControlBanOverlay";
 
-    private const float BottomPadding = 10f;
+    private const float BottomPadding = 6f;
     private const float Gap = 4f;
 
     private NGridCardHolder? _holder;
@@ -83,7 +83,7 @@ internal partial class CardDisableControlBanOverlay : Control
             {
                 Name = "CardDisableControlGridBanCheck",
                 FocusMode = FocusModeEnum.None,
-                MouseFilter = MouseFilterEnum.Pass,
+                MouseFilter = MouseFilterEnum.Stop,
                 Size = new Vector2(14f, 14f),
                 CustomMinimumSize = new Vector2(14f, 14f)
             };
@@ -208,6 +208,12 @@ internal partial class CardDisableControlBanOverlay : Control
 
     private Rect2 GetCardGlobalRect()
     {
+        // 总览定位优先使用 Hitbox（更贴近网格中卡牌实际显示与命中区域）
+        if (_holder?.Hitbox != null && GodotObject.IsInstanceValid(_holder.Hitbox))
+        {
+            return new Rect2(_holder.Hitbox.GetGlobalTransformWithCanvas().Origin, _holder.Hitbox.Size);
+        }
+
         if (_holder?.CardNode != null && GodotObject.IsInstanceValid(_holder.CardNode))
         {
             Vector2 origin = _holder.CardNode.GetGlobalTransformWithCanvas().Origin;
@@ -223,19 +229,7 @@ internal partial class CardDisableControlBanOverlay : Control
                 size = cardControl.Size;
             }
 
-            if ((size.X <= 1f || size.Y <= 1f) &&
-                _holder.Hitbox != null &&
-                GodotObject.IsInstanceValid(_holder.Hitbox))
-            {
-                size = _holder.Hitbox.Size;
-            }
-
             return new Rect2(origin, size);
-        }
-
-        if (_holder?.Hitbox != null && GodotObject.IsInstanceValid(_holder.Hitbox))
-        {
-            return new Rect2(_holder.Hitbox.GetGlobalTransformWithCanvas().Origin, _holder.Hitbox.Size);
         }
 
         return new Rect2(Vector2.Zero, Vector2.Zero);
